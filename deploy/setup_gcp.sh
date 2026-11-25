@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # 初回だけ実行: API有効化・バケット・サービスアカウント・シークレットを作る
-# 使い方: PROJECT_ID=xxx ENV_NAME=dev bash deploy/setup_gcp.sh
+# 使い方: PROJECT_ID=xxx ENV_NAME=dev bash deploy/setup_gcp.sh  （本番は ENV_NAME=prod）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source deploy/config.sh
-set -a; [ -f .env ] && source .env; set +a
+# LINEの鍵は環境ごとに分ける: .env.dev / .env.prod があればそれを、なければ .env を読む
+ENV_FILE=".env.${ENV_NAME}"; [ -f "${ENV_FILE}" ] || ENV_FILE=".env"
+echo "== LINEの鍵を ${ENV_FILE} から読みます"
+set -a; source "${ENV_FILE}"; set +a
 
 echo "== プロジェクト: ${PROJECT_ID} / 環境: ${ENV_NAME}"
 gcloud config set project "${PROJECT_ID}"
