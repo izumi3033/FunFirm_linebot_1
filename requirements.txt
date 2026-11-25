@@ -3,3 +3,5 @@ uvicorn[standard]
 line-bot-sdk>=3.0
 python-dotenv
 google-cloud-storage
+psycopg[binary]
+httpx
