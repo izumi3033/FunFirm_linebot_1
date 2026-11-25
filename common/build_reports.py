@@ -6,13 +6,13 @@ LINEではテキストと写真は別々のメッセージとして届くため�
 出力（グループ・日付ごと）:
   groups/<group_id>/reports/<日付>.jsonl … 日報1件 = 1行（プログラム用）
   groups/<group_id>/reports/<日付>.md    … 人が読む / AIに読ませる用
-使い方: python build_reports.py [--gap 10]   … 保存済みの全データをまとめ直す
+使い方: python -m common.build_reports [--gap 10]   … 保存済みの全データをまとめ直す
 """
 import argparse
 import json
 from datetime import datetime
 
-from storage import get_storage
+from common.storage import get_storage
 
 GAP_MIN = 10
 MISSING_LABEL = {"image": "［写真あり（画像は未取得）］", "video": "［動画あり］", "file": "［ファイルあり（未取得）］"}

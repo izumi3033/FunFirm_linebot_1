@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # 初回だけ実行: API有効化・バケット・サービスアカウント・シークレットを作る
-# 使い方: PROJECT_ID=xxx ENV_NAME=dev bash deploy/setup_gcp.sh  （本番は ENV_NAME=prod）
+# 使い方: BOT=report    bash deploy/setup_gcp.sh   … 日報ボット
+#        BOT=assistant bash deploy/setup_gcp.sh   … 管理ボット
+# バケットとサービスアカウントは共有なので、2回目は作成済みとしてスキップされる
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source deploy/config.sh
-# LINEの鍵は環境ごとに分ける: .env.dev / .env.prod があればそれを、なければ .env を読む
-ENV_FILE=".env.${ENV_NAME}"; [ -f "${ENV_FILE}" ] || ENV_FILE=".env"
+# LINEの鍵はボットごと: .env.report / .env.assistant を読む（日報ボットだけは .env でも可）
+ENV_FILE=".env.${BOT}"; [ -f "${ENV_FILE}" ] || ENV_FILE=".env"
+if [ "${BOT}" = "assistant" ] && [ "${ENV_FILE}" = ".env" ]; then
+  echo "!! .env.assistant がありません（管理ボットの鍵を入れて作ってください）"; exit 1
+fi
 echo "== LINEの鍵を ${ENV_FILE} から読みます"
 set -a; source "${ENV_FILE}"; set +a
 
-echo "== プロジェクト: ${PROJECT_ID} / 環境: ${ENV_NAME}"
+echo "== プロジェクト: ${PROJECT_ID} / ボット: ${BOT} / 環境: ${ENV_NAME}"
 gcloud config set project "${PROJECT_ID}"
 
 echo "== APIを有効化"
@@ -23,7 +28,7 @@ gcloud storage buckets describe "gs://${BUCKET}" >/dev/null 2>&1 || \
 
 echo "== サービスアカウント ${SA_EMAIL}"
 gcloud iam service-accounts describe "${SA_EMAIL}" >/dev/null 2>&1 || \
-  gcloud iam service-accounts create "${SA_NAME}" --display-name="LINE bot (${ENV_NAME})"
+  gcloud iam service-accounts create "${SA_NAME}" --display-name="LINE bots (${ENV_NAME})"
 gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" \
   --member="serviceAccount:${SA_EMAIL}" --role="roles/storage.objectAdmin" >/dev/null
 

@@ -1,4 +1,4 @@
-"""記録蓄積BOT: グループLINEの投稿を受け取り、保存して日報単位にまとめる。
+"""日報ボット（FunFirm）: グループLINEの投稿を受け取り、保存して日報単位にまとめる。
 
 保存先は STORAGE_BACKEND で切り替える（storage.py）
   local … Mac の data/ フォルダ（テスト用）
@@ -10,7 +10,6 @@ import mimetypes
 import os
 from datetime import datetime, timedelta, timezone
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -20,21 +19,22 @@ from linebot.v3.webhooks import (
     MessageEvent, TextMessageContent,
 )
 
-import build_reports
-from storage import get_storage
+from common import build_reports
+from common.env import load_bot_env
+from common.storage import get_storage
 
-load_dotenv()  # ローカルでは .env を読む。Cloud Run では環境変数とSecret Managerから渡す
+ENV_FILE = load_bot_env("report")  # ローカルでは .env.report（なければ .env）。Cloud Run では環境変数とSecret Manager
 config = Configuration(access_token=os.environ["LINE_CHANNEL_ACCESS_TOKEN"])
 handler = WebhookHandler(os.environ["LINE_CHANNEL_SECRET"])
 storage = get_storage()
 JST = timezone(timedelta(hours=9))
 app = FastAPI()
-print(f"[start] storage={storage.describe()}")
+print(f"[start] report_bot env={ENV_FILE} storage={storage.describe()}")
 
 
 @app.get("/")
 def health():
-    return {"status": "ok", "storage": os.getenv("STORAGE_BACKEND", "local")}
+    return {"status": "ok", "bot": "report", "storage": os.getenv("STORAGE_BACKEND", "local")}
 
 
 @app.post("/callback")

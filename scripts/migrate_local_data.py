@@ -3,15 +3,15 @@
 新形式: groups/<group_id>/raw/<日付>/<ID>.json, groups/<group_id>/attachments/<日付>/<ID>.jpg
 移し先は STORAGE_BACKEND で決まる（local なら data/groups/ 、gcs ならバケット）。
 旧ファイルは消さない（確認後に手で消す）。
-使い方: python migrate_local_data.py [--src data]
+使い方: python -m scripts.migrate_local_data [--src data]
 """
 import argparse
 import json
 import mimetypes
 from pathlib import Path
 
-import build_reports
-from storage import get_storage
+from common import build_reports
+from common.storage import get_storage
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--src", default="data", help="旧形式の data フォルダ")

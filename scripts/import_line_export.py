@@ -6,8 +6,8 @@
 - 取り込んだ日の日報（reports/）も作り直す
 
 使い方:
-  python import_line_export.py imports/トーク履歴.txt --group <グループID>            # 確認だけ（保存しない）
-  python import_line_export.py imports/トーク履歴.txt --group <グループID> --write    # 保存する
+  python -m scripts.import_line_export imports/トーク履歴.txt --group <グループID>            # 確認だけ（保存しない）
+  python -m scripts.import_line_export imports/トーク履歴.txt --group <グループID> --write    # 保存する
   --until 2026-10-13 を付けると、その日より前だけを取り込む（botが受け取り始めた日を指定）
 """
 import argparse
@@ -16,8 +16,8 @@ import json
 import re
 from collections import Counter
 
-import build_reports
-from storage import get_storage
+from common import build_reports
+from common.storage import get_storage
 
 # 日付の行: 2026/04/01(水) / 2026/4/1(水) / 2026.04.01 水曜日
 DATE_RE = re.compile(r"^(\d{4})[/.](\d{1,2})[/.](\d{1,2})(?:\s*\(.\)|\s+.曜日)?\s*$")
