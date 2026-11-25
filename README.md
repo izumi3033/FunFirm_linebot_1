@@ -25,6 +25,17 @@ LIFF用のLINEログインチャネルは、管理ボットと同じプロバイ
 | `Dockerfile` | Cloud Run 用。`APP_MODULE` でどちらのボットを動かすか選ぶ |
 | `deploy/` | GCPの初期設定とデプロイ（`BOT=report` / `BOT=assistant`） |
 
+## 保存先（STORAGE_BACKEND）
+
+| 値 | 保存先 |
+|---|---|
+| `supabase` | Supabase の DB（`line_messages`・`daily_reports`・`attachments`）と Storage（写真）。本番はこれ |
+| `local` | このフォルダの `data/`（従来どおり） |
+| `gcs` | Cloud Storage（従来どおり） |
+
+`supabase` のときは `.env.report` に `DATABASE_URL`・`SUPABASE_URL`・`SUPABASE_SERVICE_KEY` が必要。
+接続確認: `python -m scripts.check_supabase`。テーブル定義は `db/` を参照。
+
 ## 鍵の置き方
 
 `.env.example` をコピーして、ボットごとに作る（GitHubには上がらない）。
