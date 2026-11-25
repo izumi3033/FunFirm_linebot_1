@@ -1,8 +1,9 @@
 """日報ボット（FunFirm）: グループLINEの投稿を受け取り、保存して日報単位にまとめる。
 
-保存先は STORAGE_BACKEND で切り替える（storage.py）
-  local … Mac の data/ フォルダ（テスト用）
-  gcs   … Cloud Storage のバケット（Cloud Run 本番用）
+保存先は STORAGE_BACKEND で切り替える
+  supabase … Supabase の DB（line_messages / daily_reports / attachments）と Storage（本番）
+  local    … Mac の data/ フォルダ（テスト用・従来どおり）
+  gcs      … Cloud Storage のバケット（従来どおり）
 botからは一切メッセージを送らない（受け取って保存するだけ）。
 """
 import json
@@ -26,15 +27,20 @@ from common.storage import get_storage
 ENV_FILE = load_bot_env("report")  # ローカルでは .env.report（なければ .env）。Cloud Run では環境変数とSecret Manager
 config = Configuration(access_token=os.environ["LINE_CHANNEL_ACCESS_TOKEN"])
 handler = WebhookHandler(os.environ["LINE_CHANNEL_SECRET"])
-storage = get_storage()
+BACKEND = os.getenv("STORAGE_BACKEND", "local")
+if BACKEND == "supabase":
+    from common import db, report_store, supabase_storage
+    storage = None
+else:
+    storage = get_storage()
 JST = timezone(timedelta(hours=9))
 app = FastAPI()
-print(f"[start] report_bot env={ENV_FILE} storage={storage.describe()}")
+print(f"[start] report_bot env={ENV_FILE} storage={storage.describe() if storage else os.getenv('SUPABASE_URL', 'supabase')}")
 
 
 @app.get("/")
 def health():
-    return {"status": "ok", "bot": "report", "storage": os.getenv("STORAGE_BACKEND", "local")}
+    return {"status": "ok", "bot": "report", "storage": BACKEND}
 
 
 @app.post("/callback")
@@ -65,6 +71,9 @@ def on_message(event: MessageEvent):
     ts = datetime.fromtimestamp(event.timestamp / 1000, JST)
     date = ts.strftime("%Y-%m-%d")
     msg = event.message
+    if BACKEND == "supabase":
+        save_to_supabase(event, ts, date)
+        return
     prefix = build_reports.group_prefix(src.group_id)
     raw_key = f"{prefix}/raw/{date}/{msg.id}.json"
     if storage.exists(raw_key):  # LINEの再送で同じメッセージが来たら何もしない
@@ -110,6 +119,37 @@ def on_message(event: MessageEvent):
         build_reports.rebuild_day(storage, src.group_id, date)
     except Exception as e:
         print(f"[reports] まとめ直しに失敗: {e}")
+
+
+def save_to_supabase(event: MessageEvent, ts: datetime, date: str):
+    """Supabase に保存する。写真・ファイルは Storage に置いてから DB に記録する。"""
+    src, msg = event.source, event.message
+    with db.connect() as conn:
+        if report_store.already_saved(conn, msg.id):  # LINEの再送
+            print(f"[skip] 受信済み {msg.id}")
+            return
+        with ApiClient(config) as client:
+            api = MessagingApi(client)
+            attachment = None
+            if isinstance(msg, (ImageMessageContent, FileMessageContent)):
+                content = bytes(MessagingApiBlob(client).get_message_content(msg.id))
+                file_name = getattr(msg, "file_name", None)
+                ext = os.path.splitext(file_name)[1] if file_name else ".jpg"
+                path = f"groups/{src.group_id}/{date}/{msg.id}{ext}"
+                ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
+                supabase_storage.upload(path, content, ctype)
+                attachment = {"kind": "image" if isinstance(msg, ImageMessageContent) else "file",
+                              "storage_path": path, "file_name": file_name,
+                              "mime_type": ctype, "size_bytes": len(content)}
+            sender = sender_name(api, src)
+        report_id = report_store.save_message(
+            conn, message_id=msg.id, group_id=src.group_id, line_user_id=src.user_id,
+            sender_name=sender, sent_at=ts, msg_type=msg.type,
+            text=msg.text if isinstance(msg, TextMessageContent) else None,
+            quoted_id=getattr(msg, "quoted_message_id", None),
+            raw=json.loads(event.to_json()), attachment=attachment)
+    label = msg.text if isinstance(msg, TextMessageContent) else msg.type
+    print(f"[saved] supabase report={report_id} {date} {ts:%H:%M:%S} {sender}: {label}")
 
 
 @handler.add(JoinEvent)
